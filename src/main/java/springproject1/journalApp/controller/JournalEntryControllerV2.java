@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import springproject1.journalApp.entity.JournalEntry;
 import springproject1.journalApp.entity.User;
@@ -62,11 +63,21 @@ public class JournalEntryControllerV2 {
     @GetMapping("/id/{id}")
     public ResponseEntity<JournalEntry> getJournalEntryById(@PathVariable Long id) {
 
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Optional<JournalEntry> journalEntry = journalEntryService.findById(id);
 
-        return journalEntry
-                .map(entry -> new ResponseEntity<>(entry, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+
+        if (journalEntry.isEmpty()) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        // Check if this entry belongs to the logged-in user
+        if (!journalEntry.get().getUser().getUsername().equals(username)) {
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);  // 403
+        }
+
+        return new ResponseEntity<>(journalEntry.get(), HttpStatus.OK);
     }
 
     // PUT /journal/id/{id}
@@ -75,8 +86,11 @@ public class JournalEntryControllerV2 {
             @PathVariable Long id,
             @RequestBody JournalEntry newEntry
     ) {
-
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
         JournalEntry old = journalEntryService.findById(id).orElse(null);
+        if (!old.getUser().getUsername().equals(username)) {
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+        }
 
         if (old != null) {
             old.setTitle(
