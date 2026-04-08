@@ -7,10 +7,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import springproject1.journalApp.entity.JournalEntry;
 import springproject1.journalApp.entity.User;
+import springproject1.journalApp.service.GeminiService;
 import springproject1.journalApp.service.JournalEntryService;
 import springproject1.journalApp.service.UserService;
 
 import java.util.*;
+@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/journal")
 public class JournalEntryControllerV2 {
@@ -22,20 +24,21 @@ public class JournalEntryControllerV2 {
     private UserService userService;
 
 
+    @Autowired
+    private GeminiService geminiService;
+
     // GET /journal/{username}
     @GetMapping("/{username}")
     public ResponseEntity<?> getAllJournalEntriesOfUser(@PathVariable String username) {
-
         User user = userService.findByUsername(username);
-
         if (user == null) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-
         List<JournalEntry> all = user.getJournalEntries();
         if (all != null && !all.isEmpty()) {
             return new ResponseEntity<>(all, HttpStatus.OK);
         }
+        System.out.println("user exists but no journals");
         return new ResponseEntity<>(HttpStatus.NOT_FOUND);
     }
 
@@ -45,6 +48,8 @@ public class JournalEntryControllerV2 {
             @RequestBody JournalEntry myEntry,
             @RequestParam String username
     ) {
+        System.out.println(username);
+        System.out.println(myEntry);
         try {
             journalEntryService.saveEntry(myEntry, username);
             return new ResponseEntity<>(myEntry, HttpStatus.CREATED);
@@ -106,4 +111,30 @@ public class JournalEntryControllerV2 {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
+
+
+    @PostMapping("/grammar-check")
+    public ResponseEntity<String> checkGrammar(@RequestBody Map<String, String> request) {
+        String text = request.get("text");
+        if (text == null || text.isBlank()) {
+            return new ResponseEntity<>("Text cannot be empty.", HttpStatus.BAD_REQUEST);
+        }
+        String result = geminiService.checkGrammar(text);
+        return new ResponseEntity<>(result, HttpStatus.OK);
+    }
+
+    @GetMapping("/id/{id}/grammar-check")
+    public ResponseEntity<String> checkGrammarOfEntry(@PathVariable Long id) {
+        JournalEntry entry = journalEntryService.findById(id).orElse(null);
+        if (entry == null) {
+            return new ResponseEntity<>("Journal entry not found.", HttpStatus.NOT_FOUND);
+        }
+        if (entry.getContent() == null || entry.getContent().isBlank()) {
+            return new ResponseEntity<>("This journal entry has no content to check.", HttpStatus.BAD_REQUEST);
+        }
+        String result = geminiService.checkGrammar(entry.getContent());
+        return new ResponseEntity<>(result, HttpStatus.OK);
+    }
+
+
 }
